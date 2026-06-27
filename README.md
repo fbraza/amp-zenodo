@@ -1,32 +1,34 @@
 # amp-zenodo
 
-Amp-oriented port of [`@fbraza/pi-zenodo`](https://github.com/fbraza/pi-zenodo), preserving the same two-part design:
+Amp plugin and bundled skill for conservative Zenodo journal article deposit workflows.
 
-1. **Zenodo tools** for creating, managing, uploading to, validating, deleting, and optionally publishing Zenodo journal article draft deposits.
-2. **A bundled Zenodo skill** that guides conservative draft-first publication deposit workflows from PDFs.
+This is an Amp-oriented port of [`@fbraza/pi-zenodo`](https://github.com/fbraza/pi-zenodo). It keeps the original two-part design:
 
-This repository is currently scaffolded for the Amp port. The original Pi extension code has not yet been ported to the Amp plugin API.
+1. **Plugin tools** for Zenodo draft creation, listing, upload, metadata update, deletion, and explicitly confirmed publishing.
+2. **A bundled skill** that guides the agent through a draft-first, user-reviewed workflow for article PDFs.
 
-## Current contents
+## Contents
 
 ```text
+.amp/plugins/amp-zenodo.ts
 .agents/skills/zenodo/
 ├── SKILL.md
 └── references/
     └── zenodo_article_deposit_reference.md
-tests/upstream/
-├── metadata.test.ts
-├── zenodo-client.test.ts
-└── zenodo-tools.test.ts
+src/
+├── metadata.ts
+├── zenodo-client.ts
+└── tools/*.ts
+tests/
+├── amp-zenodo.test.ts
+└── upstream/*.test.ts
 ```
 
-The skill and resources were copied from `fbraza/pi-zenodo` and placed under Amp's project skill location, `.agents/skills/`.
+The `tests/upstream/` files preserve the Pi extension's original behavior as a porting reference. The active Amp test suite is `tests/amp-zenodo.test.ts`.
 
-The upstream Pi tests are preserved under `tests/upstream/` as a porting contract. They are not expected to pass until the TypeScript implementation has been adapted from Pi's extension API to Amp's plugin API.
+## Tools
 
-## Planned Amp plugin tools
-
-The Amp plugin should preserve the original tool names where possible because the skill is written around them:
+The plugin registers these tools:
 
 - `zenodo_create_draft`
 - `zenodo_get_deposition`
@@ -37,25 +39,35 @@ The Amp plugin should preserve the original tool names where possible because th
 - `zenodo_delete_draft`
 - `zenodo_publish_deposition`
 
-## Environment variables
+All tools default to the Zenodo sandbox unless `environment: "production"` is explicitly provided.
 
-The intended environment variables are inherited from `pi-zenodo`:
+## Environment variables
 
 | Variable | Purpose |
 |---|---|
 | `ZENODO_SANDBOX_TOKEN` | Sandbox access token; sandbox is the default environment. |
 | `ZENODO_TOKEN` | Production access token; production must be explicitly requested. |
 
-## Porting status
+## Safety model
 
-- [x] Repository scaffold created.
-- [x] Zenodo skill copied into Amp's project skill location.
-- [x] Skill reference copied.
-- [x] Upstream Pi tests preserved as porting reference.
-- [ ] Zenodo TypeScript logic ported from Pi extension to Amp plugin API.
-- [ ] Amp plugin tests added.
-- [ ] README updated with final install and usage instructions.
+- Sandbox is the default.
+- Production must be explicit.
+- Create, upload, update, and delete operate on unpublished drafts only.
+- Upload derives the bucket URL from the deposition and validates that it is an HTTPS Zenodo file bucket for the selected environment before sending the authenticated PUT.
+- Publishing is separate from draft creation/update/upload and requires the exact confirmation phrase:
+  - `publish sandbox deposition <id>`
+  - `publish production deposition <id>`
+- The skill reproduces the former Pi interactive UX in chat with Markdown metadata tables, access-right questions, license options, and explicit user approval before each mutating step.
+
+## Development
+
+```bash
+npm test
+npm run pack:check
+```
+
+Tests use mocked clients and do not call the live Zenodo API.
 
 ## Upstream provenance
 
-This project is derived from `@fbraza/pi-zenodo` version `0.3.0`, which was built for the Pi coding agent. The upstream package used Pi-specific extension metadata, tool registration, rendering, and packaging. Those parts must be adapted before the tools work in Amp.
+This project is derived from `@fbraza/pi-zenodo` version `0.3.0`, which was built for the Pi coding agent. Pi-specific extension registration and rendering were replaced by an Amp plugin adapter while preserving the core Zenodo workflow and validation behavior.

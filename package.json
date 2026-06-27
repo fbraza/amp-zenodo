@@ -6,7 +6,9 @@
   "type": "module",
   "private": true,
   "files": [
+    ".amp",
     ".agents",
+    "src",
     "tests",
     "README.md",
     "LICENSE"
@@ -19,6 +21,10 @@
     "data-sharing"
   ],
   "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "pack:check": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "axios": "^1.18.1"
   }
 }

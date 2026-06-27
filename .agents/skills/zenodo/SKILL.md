@@ -54,15 +54,63 @@ Draft-editing and delete tools fail closed unless Zenodo confirms the deposition
 
 1. Read the user-provided article PDF(s).
 2. Extract candidate metadata from visible article text and embedded metadata if available.
-3. Present a concise confirmation table before updating Zenodo metadata.
+3. Present candidate metadata in Markdown tables and ask the user to validate it before calling any mutating Zenodo tool.
 4. Ask only for missing, ambiguous, or policy-sensitive fields.
-5. Create or identify a Zenodo draft, defaulting to sandbox unless production was explicitly requested.
-6. Upload the PDF file(s).
-7. Update metadata.
-8. Retrieve the deposition with `zenodo_get_deposition`.
-9. Present a preflight summary and stop.
+5. Ask for access right explicitly: `open`, `embargoed`, `restricted`, or `closed`.
+6. If `open` or `embargoed`, present recommended license choices as a short Markdown list or table and ask the user to choose a valid Zenodo license identifier.
+7. Create or identify a Zenodo draft, defaulting to sandbox unless production was explicitly requested.
+8. Upload the PDF file(s).
+9. Update metadata only after the user has approved the final candidate metadata.
+10. Retrieve the deposition with `zenodo_get_deposition`.
+11. Present a preflight summary and stop.
 
 Do not combine these steps into an implicit publish workflow.
+
+## Chat Review and Confirmation UX
+
+Amp does not provide Pi's interactive TUI controls. Reproduce the same safety behavior in chat with Markdown tables, numbered options, and explicit yes/no questions.
+
+Before creating, uploading, updating, deleting, or publishing a Zenodo record, show the user what will happen and wait for a clear confirmation.
+
+For metadata review, render at least these tables:
+
+### Candidate Article Metadata
+
+| Field | Candidate value | Source / confidence | Needs user decision? |
+|---|---|---|---|
+| title | ... | PDF first page / high | no |
+| DOI | ... | PDF header / high | no |
+| publication_date | ... | article info / medium | yes/no |
+| access_right | unset | user policy choice | yes |
+| license | unset | user policy choice | yes when open/embargoed |
+
+### Candidate Creators
+
+| Order | Zenodo name | Affiliation | ORCID | Source / confidence | Needs user decision? |
+|---:|---|---|---|---|---|
+| 1 | Family, Given | ... | ... | PDF author block / high | no |
+
+When access rights are unresolved, ask exactly:
+
+> Which Zenodo access right should I use: `open`, `embargoed`, `restricted`, or `closed`?
+
+If recommending licenses, keep the recommendation transparent and non-binding:
+
+| Option | Zenodo license id | When appropriate |
+|---:|---|---|
+| 1 | `cc-by-4.0` | Confirmed open-access article under CC BY 4.0 |
+| 2 | `cc-by-nc-4.0` | Confirmed non-commercial Creative Commons license |
+| 3 | another Zenodo id | User provides a different valid Zenodo license |
+
+Use `zenodo_list_licenses` when the user asks for valid Zenodo license identifiers or when the identifier is uncertain.
+
+Use concise confirmations such as:
+
+- "I will create a sandbox draft, upload `<filename>`, and apply the metadata above. Proceed?"
+- "I will update metadata for sandbox deposition `<id>` with the table above. Proceed?"
+- "I will delete unpublished sandbox draft `<id>`. Proceed?"
+
+Do not treat vague approval of a previous step as approval for a later mutating step.
 
 ## Opt-in Publishing Workflow
 
