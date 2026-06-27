@@ -1,10 +1,14 @@
-import axios, {
-	type AxiosError,
-	type AxiosInstance,
-	type AxiosRequestConfig,
-} from "axios";
-
 export type ZenodoEnvironment = "sandbox" | "production";
+
+export type ZenodoRequestConfig = {
+	method?: string;
+	url?: string;
+	data?: unknown;
+	headers?: Record<string, string | number | boolean | undefined>;
+	signal?: AbortSignal;
+	maxBodyLength?: number;
+	maxContentLength?: number;
+};
 
 export type ZenodoErrorContext = {
 	environment?: ZenodoEnvironment;
@@ -34,9 +38,8 @@ export type ZenodoClient = {
 	environment: ZenodoEnvironment;
 	baseURL: string;
 	tokenEnvVar: string;
-	axios: AxiosInstance;
 	request<T = unknown>(
-		config: AxiosRequestConfig,
+		config: ZenodoRequestConfig,
 		context?: ZenodoErrorContext,
 	): Promise<T>;
 };
@@ -44,7 +47,7 @@ export type ZenodoClient = {
 export type CreateZenodoClientOptions = {
 	environment?: ZenodoEnvironment;
 	env?: NodeJS.ProcessEnv;
-	axiosInstance?: AxiosInstance;
+	fetch?: typeof fetch;
 };
 
 export class ZenodoApiError extends Error {
@@ -98,27 +101,25 @@ export function createZenodoClient(
 		});
 	}
 
-	const axiosInstance =
-		options.axiosInstance ??
-		axios.create({
-			baseURL,
-			headers: {
-				Authorization: `Bearer ${token}`,
-			},
-		});
+	const fetchImpl = options.fetch ?? fetch;
 
 	return {
 		environment,
 		baseURL,
 		tokenEnvVar,
-		axios: axiosInstance,
 		async request<T = unknown>(
-			config: AxiosRequestConfig,
+			config: ZenodoRequestConfig,
 			context: ZenodoErrorContext = {},
 		): Promise<T> {
 			try {
-				const response = await axiosInstance.request<T>(config);
-				return response.data;
+				const response = await fetchImpl(resolveZenodoUrl(baseURL, config.url),
+					toFetchRequestInit(config, token),
+				);
+				const data = await readZenodoResponse(response);
+				if (!response.ok) {
+					throw new ZenodoHttpError(response, data);
+				}
+				return data as T;
 			} catch (error) {
 				throw new ZenodoApiError(
 					normalizeZenodoError(error, {
@@ -137,8 +138,8 @@ export function normalizeZenodoError(
 	error: unknown,
 	context: ZenodoErrorContext = {},
 ): NormalizedZenodoError {
-	if (axios.isAxiosError(error)) {
-		return normalizeAxiosError(error, context);
+	if (error instanceof ZenodoHttpError) {
+		return normalizeHttpError(error, context);
 	}
 
 	if (error instanceof ZenodoApiError) {
@@ -151,11 +152,23 @@ export function normalizeZenodoError(
 	};
 }
 
-function normalizeAxiosError(
-	error: AxiosError,
+class ZenodoHttpError extends Error {
+	readonly response: Response;
+	readonly data: unknown;
+
+	constructor(response: Response, data: unknown) {
+		super(`Zenodo request failed with ${response.status} ${response.statusText}.`);
+		this.name = "ZenodoHttpError";
+		this.response = response;
+		this.data = data;
+	}
+}
+
+function normalizeHttpError(
+	error: ZenodoHttpError,
 	context: ZenodoErrorContext,
 ): NormalizedZenodoError {
-	const responseData = asRecord(error.response?.data);
+	const responseData = asRecord(error.data);
 	const responseMessage = responseData?.message;
 	const message =
 		typeof responseMessage === "string" && responseMessage.trim()
@@ -165,11 +178,67 @@ function normalizeAxiosError(
 
 	return {
 		message,
-		status: error.response?.status,
-		statusText: error.response?.statusText,
+		status: error.response.status,
+		statusText: error.response.statusText,
 		zenodoErrors: zenodoErrors.length > 0 ? zenodoErrors : undefined,
 		...context,
 	};
+}
+
+function resolveZenodoUrl(baseURL: string, url = ""): string {
+	if (/^https?:\/\//i.test(url)) return url;
+	const cleanBaseURL = baseURL.replace(/\/+$/, "");
+	const cleanPath = url.replace(/^\/+/, "");
+	return cleanPath ? `${cleanBaseURL}/${cleanPath}` : cleanBaseURL;
+}
+
+function toFetchRequestInit(
+	config: ZenodoRequestConfig,
+	token: string,
+): RequestInit & { duplex?: "half" } {
+	const headers = new Headers({ Authorization: `Bearer ${token}` });
+	for (const [key, value] of Object.entries(config.headers ?? {})) {
+		if (value !== undefined) headers.set(key, String(value));
+	}
+	const init: RequestInit & { duplex?: "half" } = {
+		method: config.method ?? "GET",
+		headers,
+		signal: config.signal,
+	};
+	if (config.data !== undefined) {
+		init.body = toFetchBody(config.data, headers);
+		if (isStreamingBody(config.data)) init.duplex = "half";
+	}
+	return init;
+}
+
+function toFetchBody(value: unknown, headers: Headers): BodyInit {
+	const contentType = headers.get("Content-Type") ?? "";
+	if (contentType.toLowerCase().includes("application/json") && isPlainObject(value)) {
+		return JSON.stringify(value);
+	}
+	return value as BodyInit;
+}
+
+async function readZenodoResponse(response: Response): Promise<unknown> {
+	const text = await response.text();
+	if (!text) return undefined;
+	try {
+		return JSON.parse(text) as unknown;
+	} catch {
+		return { message: text };
+	}
+}
+
+function isStreamingBody(value: unknown): boolean {
+	if (typeof value !== "object" || value === null) return false;
+	return typeof (value as { pipe?: unknown }).pipe === "function";
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	if (typeof value !== "object" || value === null) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
 }
 
 function normalizeValidationErrors(value: unknown): ZenodoValidationError[] {

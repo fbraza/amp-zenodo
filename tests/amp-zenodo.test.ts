@@ -7,7 +7,7 @@ import test from "node:test"
 import ampZenodoPlugin, { registerZenodoTools } from "../.amp/plugins/amp-zenodo.ts"
 import { assertValidArticleMetadata, validateArticleMetadata, type ZenodoArticleMetadata } from "../src/metadata.ts"
 import { getValidatedBucketUrl, normalizeRemoteFilename, uploadZenodoFile } from "../src/tools/upload-file.ts"
-import type { ZenodoClient } from "../src/zenodo-client.ts"
+import { createZenodoClient, ZenodoApiError, type ZenodoClient } from "../src/zenodo-client.ts"
 
 const validMetadata: ZenodoArticleMetadata = {
 	upload_type: "publication",
@@ -53,7 +53,6 @@ function mockClient(handler: (config: Record<string, unknown>) => unknown): Zeno
 		environment: "sandbox",
 		baseURL: "https://sandbox.zenodo.org/api",
 		tokenEnvVar: "ZENODO_SANDBOX_TOKEN",
-		axios: {} as ZenodoClient["axios"],
 		async request(config) {
 			return handler(config as Record<string, unknown>) as never
 		},
@@ -90,6 +89,45 @@ test("Amp plugin registers all expected Zenodo tools with Amp-shaped definitions
 		assert.equal((tool as Record<string, unknown>).renderResult, undefined)
 		assert.equal((tool as Record<string, unknown>).label, undefined)
 	}
+})
+
+test("Zenodo client uses built-in fetch and normalizes API errors", async () => {
+	const calls: { url: string; init: RequestInit }[] = []
+	const client = createZenodoClient({
+		env: { ZENODO_SANDBOX_TOKEN: "token-123" },
+		fetch: (async (url: string | URL | Request, init?: RequestInit) => {
+			calls.push({ url: String(url), init: init ?? {} })
+			return new Response(JSON.stringify({ id: 42 }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			})
+		}) as typeof fetch,
+	})
+
+	const result = await client.request<{ id: number }>({ method: "POST", url: "/deposit/depositions", data: { metadata: { title: "Example" } }, headers: { "Content-Type": "application/json" } })
+	assert.deepEqual(result, { id: 42 })
+	assert.equal(calls[0].url, "https://sandbox.zenodo.org/api/deposit/depositions")
+	assert.equal((calls[0].init.headers as Headers).get("Authorization"), "Bearer token-123")
+	assert.equal(calls[0].init.body, JSON.stringify({ metadata: { title: "Example" } }))
+
+	const failingClient = createZenodoClient({
+		env: { ZENODO_SANDBOX_TOKEN: "token-123" },
+		fetch: (async () => new Response(
+			JSON.stringify({ message: "Validation error.", errors: [{ field: "title", message: "Missing data" }] }),
+			{ status: 400, statusText: "BAD REQUEST", headers: { "Content-Type": "application/json" } },
+		)) as typeof fetch,
+	})
+
+	await assert.rejects(
+		failingClient.request({ method: "POST", url: "/deposit/depositions" }),
+		(error: unknown) => {
+			assert.ok(error instanceof ZenodoApiError)
+			assert.equal(error.details.status, 400)
+			assert.equal(error.details.zenodoErrors?.[0]?.field, "title")
+			assert.match(error.message, /Validation error/)
+			return true
+		},
+	)
 })
 
 test("metadata validation enforces article deposits and conditional access fields", () => {
