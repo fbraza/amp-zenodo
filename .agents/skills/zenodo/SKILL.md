@@ -54,13 +54,13 @@ Draft-editing and delete tools fail closed unless Zenodo confirms the deposition
 
 1. Read the user-provided article PDF(s).
 2. Extract candidate metadata from visible article text and embedded metadata if available.
-3. Present candidate metadata in Markdown tables and ask the user to validate it before calling any mutating Zenodo tool.
-4. Ask only for missing, ambiguous, or policy-sensitive fields.
-5. Ask for access right explicitly: `open`, `embargoed`, `restricted`, or `closed`.
-6. If `open` or `embargoed`, present recommended license choices as a short Markdown list or table and ask the user to choose a valid Zenodo license identifier.
-7. Create or identify a Zenodo draft, defaulting to sandbox unless production was explicitly requested.
-8. Upload the PDF file(s).
-9. Update metadata only after the user has approved the final candidate metadata.
+3. Present extracted article metadata and creators in Markdown tables for user checking.
+4. Ask the user to choose the access right: `open`, `embargoed`, `restricted`, or `closed`.
+5. If the access right is `open` or `embargoed`, present a short list of recommended Zenodo license identifiers and ask the user to choose one.
+6. Ask only for remaining missing, ambiguous, or policy-sensitive fields.
+7. Present the final draft plan: environment, file(s), access right, license if any, and final metadata table.
+8. Wait for explicit user approval before calling any mutating Zenodo tool.
+9. After approval, create or identify the draft, upload file(s), and update metadata.
 10. Retrieve the deposition with `zenodo_get_deposition`.
 11. Present a preflight summary and stop.
 
@@ -72,7 +72,7 @@ Amp does not provide Pi's interactive TUI controls. Reproduce the same safety be
 
 Before creating, uploading, updating, deleting, or publishing a Zenodo record, show the user what will happen and wait for a clear confirmation.
 
-For metadata review, render at least these tables:
+For metadata review, render these tables before draft creation or metadata update:
 
 ### Candidate Article Metadata
 
@@ -104,7 +104,7 @@ If recommending licenses, keep the recommendation transparent and non-binding:
 
 Use `zenodo_list_licenses` when the user asks for valid Zenodo license identifiers or when the identifier is uncertain.
 
-Use concise confirmations such as:
+Use one concise final confirmation before creating/updating the draft:
 
 - "I will create a sandbox draft, upload `<filename>`, and apply the metadata above. Proceed?"
 - "I will update metadata for sandbox deposition `<id>` with the table above. Proceed?"
