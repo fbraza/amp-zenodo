@@ -20,11 +20,10 @@ src/
 ├── zenodo-client.ts
 └── tools/*.ts
 tests/
-├── amp-zenodo.test.ts
-└── upstream/*.test.ts
+└── amp-zenodo.test.ts
 ```
 
-The `tests/upstream/` files preserve the Pi extension's original behavior as a porting reference. The active Amp test suite is `tests/amp-zenodo.test.ts`.
+The active Amp test suite is `tests/amp-zenodo.test.ts`.
 
 ## Tools
 
