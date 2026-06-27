@@ -1,0 +1,24 @@
+{
+  "name": "@fbraza/amp-zenodo",
+  "version": "0.1.0",
+  "description": "Amp plugin and skill for Zenodo journal article draft deposit workflows.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "files": [
+    ".agents",
+    "tests",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "amp-plugin",
+    "amp-skill",
+    "zenodo",
+    "deposit",
+    "data-sharing"
+  ],
+  "scripts": {
+    "pack:check": "npm pack --dry-run"
+  }
+}
