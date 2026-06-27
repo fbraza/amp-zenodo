@@ -8,8 +8,11 @@ The port should preserve the original conservative Zenodo workflow:
 
 - sandbox by default;
 - production only when explicitly requested;
+- Pi-style step-by-step decision support reproduced through normal Amp chat;
 - unpublished draft-first workflow;
 - strict journal article metadata validation;
+- Markdown metadata tables and license-choice lists for user review;
+- explicit user validation before draft creation, upload, or metadata update in the standard workflow;
 - safe upload/update/delete checks on unpublished drafts;
 - publish only after exact user confirmation and preflight validation.
 
@@ -68,6 +71,112 @@ Keep three layers separate:
 3. `.agents/skills/zenodo/`
    - agent instructions and references only;
    - no network/API implementation.
+
+## Chat-driven interactive workflow
+
+The Amp port must reproduce the Pi agent's interactive deposit workflow through normal chat, even without Pi TUI widgets.
+
+The interaction belongs in the **skill and agent instructions**, not in plugin tools.
+
+The skill owns:
+
+- asking explicit decision questions;
+- rendering candidate metadata as Markdown tables;
+- presenting concise license choices;
+- asking the user to validate/correct metadata;
+- deciding when it is safe to call mutating Zenodo tools.
+
+The plugin tools own:
+
+- deterministic Zenodo API operations;
+- runtime input parsing;
+- metadata validation;
+- draft-state checks;
+- returning JSON or failing closed with actionable errors.
+
+Tools should not ask conversational questions like “which license do you want?” They should return data, succeed, or fail with validation errors. The agent asks questions in chat before calling tools.
+
+### Required standard chat flow
+
+1. **Determine environment.**
+   - Default to `sandbox`.
+   - If the user requests `production`, state that this creates or modifies a real Zenodo draft and ask for explicit confirmation before any production mutation.
+
+2. **Extract candidate metadata from the PDF.**
+   - Treat all extracted values as candidates, not truth.
+   - Preserve author order.
+   - Do not guess publication date, access right, license, embargo date, access conditions, or grant IDs.
+
+3. **Ask access-right question.**
+   - Ask whether the record should be `open`, `embargoed`, `restricted`, or `closed`.
+   - Explain conditional requirements:
+     - `open`: license required;
+     - `embargoed`: license and embargo date required;
+     - `restricted`: access conditions required;
+     - `closed`: no public license required.
+
+4. **Present license choices when needed.**
+   - If access is `open` or `embargoed`, present 2–5 relevant choices, not the full catalog unless requested.
+   - If the PDF states a license, present it as evidence/recommendation, not an automatic decision.
+   - Use `zenodo_list_licenses` when a valid Zenodo license identifier is needed.
+   - Ask the user to choose the exact license ID or provide another valid Zenodo ID.
+
+5. **Render metadata review table.**
+   - Include title, DOI, publication date, journal fields, description/abstract, access right, license, embargo/restricted fields, keywords, grants/funding, and unresolved fields.
+   - Use a separate author table when there are multiple authors.
+
+6. **Wait for explicit user validation.**
+   - Do not proceed on silence.
+   - Do not treat approval from an earlier unrelated turn as approval.
+   - If the user corrects values, update the metadata and re-render the table when changes are material.
+
+7. **Build final `ZenodoArticleMetadata`.**
+   - Ensure all required fields and conditionals are present.
+   - Tool parsers/core validators must revalidate before any network call.
+
+8. **Create/update/upload draft only after validation.**
+   - New draft: prefer `zenodo_create_draft` with confirmed metadata.
+   - Existing draft: call `zenodo_get_deposition`, ensure unpublished draft, then call `zenodo_update_metadata` with confirmed metadata.
+   - Upload files only after the same user-confirmation gate in the standard workflow.
+
+9. **Preflight and stop.**
+   - Call `zenodo_get_deposition`.
+   - Render a preflight summary.
+   - State clearly that the record is a draft and has not been published.
+   - Publishing remains a separate opt-in workflow requiring the exact phrase.
+
+### Required Markdown formats
+
+Metadata review table:
+
+```markdown
+| Field | Candidate value | Source/evidence | Status |
+|---|---|---|---|
+| Title | ... | PDF first page | needs confirmation |
+| DOI | ... | article header | confirm/omit? |
+| Publication date | ... | article info block | needs confirmation |
+| Journal | ... | article header | needs confirmation |
+| Access right | open/closed/... | user choice required | unresolved |
+| License | cc-by-4.0/... | paper license statement or user choice | unresolved |
+```
+
+Author table:
+
+```markdown
+| Order | Zenodo creator name | ORCID | Affiliation | Evidence/status |
+|---:|---|---|---|---|
+| 1 | Family, Given | ... | ... | confirm |
+```
+
+License-choice table:
+
+```markdown
+| Option | Zenodo license id | Why shown | Evidence |
+|---|---|---|---|
+| Recommended | cc-by-4.0 | PDF says Creative Commons Attribution 4.0 | article footer |
+| Alternative | cc-by-nc-4.0 | Use only if the article license is non-commercial | user must confirm |
+| Closed access | — | Files archived privately, no public license required | user choice |
+```
 
 ## Tools to expose
 
@@ -264,6 +373,11 @@ If this stricter check breaks known valid Zenodo draft states, revert to upstrea
 - `createZenodoDraft` validates metadata if metadata is provided.
 - `updateZenodoMetadata` validates metadata and only updates an unpublished draft.
 - Publish preflight validates server-side deposition metadata before publishing.
+- In the standard article-deposit workflow, the skill must not call `zenodo_create_draft`, `zenodo_upload_file`, or `zenodo_update_metadata` until the user has validated the metadata table and access/license decisions.
+- Prefer creating a new draft with confirmed metadata rather than creating an empty placeholder draft and updating it later.
+- If `zenodo_create_draft` remains able to create empty drafts for API parity, the skill should not use that mode in the normal PDF-to-article workflow.
+- `parseCreateDraftInput` and `parseUpdateMetadataInput` should validate metadata before token lookup, client creation, or network calls.
+- Invalid metadata should fail with field-specific validation information.
 
 ### Upload safety
 
@@ -319,6 +433,9 @@ Before implementation is complete:
 - keep all Zenodo safety rules intact;
 - keep custom tool names stable;
 - update reference wording that describes Pi-style “structured details” if present, because Amp tools return JSON strings.
+- make the chat-driven access/license/metadata validation flow explicit in the skill;
+- require the agent to render the metadata review table and license-choice table in Markdown;
+- require explicit user approval before draft creation, file upload, or metadata update in the standard workflow.
 
 ## Tests
 
@@ -351,6 +468,8 @@ Test categories:
 6. Boundary/safety tests:
    - invalid `environment` rejected before token lookup/network;
    - wrong publish confirmation rejected before token lookup/network;
+   - invalid create metadata rejected before token lookup/network;
+   - invalid update metadata rejected before token lookup/network;
    - `all_versions` preserved in `zenodo_list_depositions` query;
    - upload rejects off-origin bucket URL before `PUT`;
    - upload rejects unsafe remote filenames;
@@ -416,10 +535,14 @@ Manual upload verification should confirm axios/file streaming works in Amp's pl
 ## Safe to defer
 
 - Migrating from axios to `fetch`.
-- Rich rendering/content blocks.
+- Rich Amp content blocks or custom UI widgets.
 - Result compaction/truncation.
 - Deep JSON Schema for full article metadata.
 - Live Zenodo integration tests.
+- Separate `zenodo_validate_metadata` / dry-run tool; for v1, create/update perform the same validation before network mutation.
+- Automatic license inference beyond obvious extracted license statements.
+- DOI/Crossref/OpenAlex enrichment.
+- Bulk multi-PDF wizard behavior.
 - Delete confirmation phrase.
 - Global plugin-manager installation.
 - Installing by tag/SHA instead of branch head.
