@@ -1,6 +1,6 @@
 # Zenodo Article Deposit Reference
 
-This reference supports the `zenodo` skill. It summarizes the Zenodo API surface used by the bundled tools.
+This reference supports the `managing-zenodo-deposits` skill. It summarizes the Zenodo API surface used by the bundled tools.
 
 ## Environments and Tokens
 

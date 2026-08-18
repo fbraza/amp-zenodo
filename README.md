@@ -1,33 +1,30 @@
 # amp-zenodo
 
-Amp plugin and bundled skill for conservative Zenodo journal article deposit workflows.
+Amp-oriented port of [`@fbraza/pi-zenodo`](https://github.com/fbraza/pi-zenodo), packaged as one self-contained Amp directory plugin:
 
-This is an Amp-oriented port of [`@fbraza/pi-zenodo`](https://github.com/fbraza/pi-zenodo). It keeps the original two-part design:
+1. **Zenodo tools** for draft creation, metadata management, file upload, listing, deletion, and explicitly confirmed publishing.
+2. **A bundled Zenodo skill** that guides the agent through a conservative, draft-first journal article deposit workflow.
 
-1. **Plugin tools** for Zenodo draft creation, listing, upload, metadata update, deletion, and explicitly confirmed publishing.
-2. **A bundled skill** that guides the agent through a draft-first, user-reviewed workflow for article PDFs.
-
-## Contents
+## Current contents
 
 ```text
-.amp/plugins/amp-zenodo.ts
-.agents/skills/zenodo/
-├── SKILL.md
-└── references/
-    └── zenodo_article_deposit_reference.md
-src/
-├── metadata.ts
-├── zenodo-client.ts
-└── tools/*.ts
-tests/
-└── amp-zenodo.test.ts
+amp-zenodo/
+├── index.ts
+├── src/
+│   ├── metadata.ts
+│   ├── zenodo-client.ts
+│   └── tools/
+├── skills/managing-zenodo-deposits/
+│   ├── SKILL.md
+│   └── references/
+│       └── zenodo_article_deposit_reference.md
+└── tests/
+    └── amp-zenodo.test.ts
 ```
 
-The active Amp test suite is `tests/amp-zenodo.test.ts`.
+The plugin explicitly registers its bundled skill with `amp.registerSkill`. Amp exposes it under the qualified name `amp-zenodo:managing-zenodo-deposits`; there is no separate bare project skill. The skill's `builtin-tools` frontmatter gates all eight plugin tools until the skill is loaded.
 
-## Tools
-
-The plugin registers these tools:
+## Amp plugin tools
 
 - `zenodo_create_draft`
 - `zenodo_get_deposition`
@@ -52,13 +49,23 @@ All tools default to the Zenodo sandbox unless `environment: "production"` is ex
 - Sandbox is the default.
 - Production must be explicit.
 - Create, upload, update, and delete operate on unpublished drafts only.
-- Upload derives the bucket URL from the deposition and validates that it is an HTTPS Zenodo file bucket for the selected environment before sending the authenticated PUT.
-- Publishing is separate from draft creation/update/upload and requires the exact confirmation phrase:
-  - `publish sandbox deposition <id>`
-  - `publish production deposition <id>`
-- The skill reproduces the former Pi interactive UX in chat with Markdown metadata tables, access-right questions, license options, and explicit user approval before each mutating step.
+- Upload validates that Zenodo returned an HTTPS file bucket for the selected environment before sending credentials or file bytes.
+- Publishing is separate from draft management and requires the exact confirmation phrase `publish <environment> deposition <id>`.
+- The bundled skill requires metadata review and explicit approval before mutations, then stops after draft preflight unless publishing is separately requested.
 
-## Development
+## Use in Amp
+
+The repository root is the complete Amp directory plugin package. To publish it through a User or Workspace Plugins repository, copy the repository contents into that plugin repository as an `amp-zenodo/` directory. Keeping the directory intact preserves the implementation, bundled skill, and reference material.
+
+The source repository deliberately does not place the package under `.amp/plugins/`. The `.amp/` directory is ignored so repository-local Amp configuration can remain unversioned.
+
+After installing or publishing the plugin and reloading plugins, inspect the bundled skill with:
+
+```bash
+amp skill info amp-zenodo:managing-zenodo-deposits
+```
+
+## Develop
 
 ```bash
 npm test
@@ -69,4 +76,4 @@ Tests use mocked clients and do not call the live Zenodo API.
 
 ## Upstream provenance
 
-This project is derived from `@fbraza/pi-zenodo` version `0.3.0`, which was built for the Pi coding agent. Pi-specific extension registration and rendering were replaced by an Amp plugin adapter while preserving the core Zenodo workflow and validation behavior.
+This project is derived from `@fbraza/pi-zenodo` version `0.3.0`. Pi-specific extension registration and rendering were replaced by Amp's plugin API while preserving the core Zenodo workflow and validation behavior.

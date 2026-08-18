@@ -4,7 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import test from "node:test"
 
-import ampZenodoPlugin, { registerZenodoTools } from "../.amp/plugins/amp-zenodo.ts"
+import ampZenodoPlugin, { registerZenodoTools } from "../index.ts"
 import { assertValidArticleMetadata, validateArticleMetadata, type ZenodoArticleMetadata } from "../src/metadata.ts"
 import { getValidatedBucketUrl, normalizeRemoteFilename, uploadZenodoFile } from "../src/tools/upload-file.ts"
 import { createZenodoClient, ZenodoApiError, type ZenodoClient } from "../src/zenodo-client.ts"
@@ -59,15 +59,20 @@ function mockClient(handler: (config: Record<string, unknown>) => unknown): Zeno
 	}
 }
 
-test("Amp plugin registers all expected Zenodo tools with Amp-shaped definitions", () => {
+test("Amp plugin registers its bundled skill and all expected Zenodo tools", async () => {
 	const tools: RegisteredTool[] = []
-	ampZenodoPlugin({
+	const skills: string[] = []
+	await ampZenodoPlugin({
 		registerTool(tool: RegisteredTool) {
 			tools.push(tool)
 		},
+		async registerSkill({ path }: { path: string }) {
+			skills.push(path)
+		},
 		logger: { log() {} },
-	})
+	} as never)
 
+	assert.deepEqual(skills, ["skills/managing-zenodo-deposits"])
 	assert.deepEqual(
 		tools.map((tool) => tool.name),
 		[

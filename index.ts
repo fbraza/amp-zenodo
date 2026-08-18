@@ -1,18 +1,22 @@
-import type { ZenodoArticleMetadata } from "../../src/metadata.ts"
-import { assertValidArticleMetadata } from "../../src/metadata.ts"
-import { createZenodoDraft } from "../../src/tools/create-draft.ts"
-import { deleteZenodoDraft } from "../../src/tools/delete-draft.ts"
-import { getZenodoDeposition } from "../../src/tools/get-deposition.ts"
-import { listZenodoDepositions } from "../../src/tools/list-depositions.ts"
-import { listZenodoLicenses } from "../../src/tools/list-licenses.ts"
-import { publishZenodoDeposition } from "../../src/tools/publish-deposition.ts"
-import type { ZenodoToolOptions } from "../../src/tools/shared.ts"
-import { normalizeRemoteFilename } from "../../src/tools/upload-file.ts"
-import { uploadZenodoFile } from "../../src/tools/upload-file.ts"
-import { updateZenodoMetadata } from "../../src/tools/update-metadata.ts"
-import type { ZenodoEnvironment } from "../../src/zenodo-client.ts"
+import type { PluginAPI } from "@ampcode/plugin"
 
-type PluginAPI = {
+import type { ZenodoArticleMetadata } from "./src/metadata.ts"
+import { assertValidArticleMetadata } from "./src/metadata.ts"
+import { createZenodoDraft } from "./src/tools/create-draft.ts"
+import { deleteZenodoDraft } from "./src/tools/delete-draft.ts"
+import { getZenodoDeposition } from "./src/tools/get-deposition.ts"
+import { listZenodoDepositions } from "./src/tools/list-depositions.ts"
+import { listZenodoLicenses } from "./src/tools/list-licenses.ts"
+import { publishZenodoDeposition } from "./src/tools/publish-deposition.ts"
+import type { ZenodoToolOptions } from "./src/tools/shared.ts"
+import { normalizeRemoteFilename } from "./src/tools/upload-file.ts"
+import { uploadZenodoFile } from "./src/tools/upload-file.ts"
+import { updateZenodoMetadata } from "./src/tools/update-metadata.ts"
+import type { ZenodoEnvironment } from "./src/zenodo-client.ts"
+
+export const description = "Manages conservative Zenodo journal article deposit workflows and bundles guided draft, metadata, upload, and publishing instructions."
+
+type ZenodoToolRegistrar = {
 	logger?: { log: (...args: unknown[]) => void }
 	registerTool: (definition: PluginToolDefinition) => unknown
 }
@@ -105,7 +109,7 @@ const schemas = {
 	},
 }
 
-export function registerZenodoTools(amp: PluginAPI, options: ZenodoToolOptions = {}) {
+export function registerZenodoTools(amp: ZenodoToolRegistrar, options: ZenodoToolOptions = {}) {
 	amp.registerTool({
 		name: "zenodo_create_draft",
 		description: "Create an unpublished Zenodo deposition draft. Defaults to sandbox and optionally accepts validated journal article metadata.",
@@ -181,8 +185,10 @@ export function registerZenodoTools(amp: PluginAPI, options: ZenodoToolOptions =
 	amp.logger?.log?.("amp-zenodo plugin registered Zenodo tools")
 }
 
-export default function ampZenodoPlugin(amp: PluginAPI) {
-	registerZenodoTools(amp)
+export default async function ampZenodoPlugin(amp: PluginAPI) {
+	registerZenodoTools(amp as unknown as ZenodoToolRegistrar)
+	await amp.registerSkill({ path: "skills/managing-zenodo-deposits" })
+	amp.logger.log("amp-zenodo plugin registered managing-zenodo-deposits and its Zenodo tools")
 }
 
 function parseInputObject(input: unknown): Record<string, unknown> {

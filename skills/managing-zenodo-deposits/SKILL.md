@@ -1,6 +1,15 @@
 ---
-name: zenodo
+name: managing-zenodo-deposits
 description: Prepares, validates, uploads, manages, and optionally publishes Zenodo journal article deposits from PDF files. Use when creating Zenodo records for publications or article PDFs.
+builtin-tools:
+  - zenodo_create_draft
+  - zenodo_get_deposition
+  - zenodo_list_depositions
+  - zenodo_list_licenses
+  - zenodo_upload_file
+  - zenodo_update_metadata
+  - zenodo_delete_draft
+  - zenodo_publish_deposition
 ---
 
 # Zenodo Journal Article Drafts
