@@ -10,7 +10,7 @@ Amp-oriented port of [`@fbraza/pi-zenodo`](https://github.com/fbraza/pi-zenodo),
 ```text
 amp-zenodo/
 ├── index.ts
-├── src/
+├── lib/
 │   ├── metadata.ts
 │   ├── zenodo-client.ts
 │   └── tools/

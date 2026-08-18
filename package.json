@@ -7,7 +7,7 @@
   "private": true,
   "files": [
     "index.ts",
-    "src",
+    "lib",
     "skills",
     "tests",
     "README.md",

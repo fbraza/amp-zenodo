@@ -5,9 +5,9 @@ import path from "node:path"
 import test from "node:test"
 
 import ampZenodoPlugin, { registerZenodoTools } from "../index.ts"
-import { assertValidArticleMetadata, validateArticleMetadata, type ZenodoArticleMetadata } from "../src/metadata.ts"
-import { getValidatedBucketUrl, normalizeRemoteFilename, uploadZenodoFile } from "../src/tools/upload-file.ts"
-import { createZenodoClient, ZenodoApiError, type ZenodoClient } from "../src/zenodo-client.ts"
+import { assertValidArticleMetadata, validateArticleMetadata, type ZenodoArticleMetadata } from "../lib/metadata.ts"
+import { getValidatedBucketUrl, normalizeRemoteFilename, uploadZenodoFile } from "../lib/tools/upload-file.ts"
+import { createZenodoClient, ZenodoApiError, type ZenodoClient } from "../lib/zenodo-client.ts"
 
 const validMetadata: ZenodoArticleMetadata = {
 	upload_type: "publication",
