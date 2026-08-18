@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+node_version="22.18.0"
+node_platform="linux-x64"
+node_home="$HOME/.local/share/node-v${node_version}-${node_platform}"
+
+run_step() {
+	local label="$1"
+	shift
+	printf '==> %s\n' "$label"
+	time "$@"
+}
+
+install_node() {
+	local archive
+	archive="$(mktemp --suffix=.tar.xz)"
+	trap 'rm -f -- "$archive"' RETURN
+
+	curl --fail --silent --show-error --location \
+		"https://nodejs.org/download/release/v${node_version}/node-v${node_version}-${node_platform}.tar.xz" \
+		--output "$archive"
+	mkdir -p -- "$(dirname "$node_home")"
+	rm -rf -- "$node_home"
+	tar -xJf "$archive" -C "$(dirname "$node_home")"
+	rm -f -- "$archive"
+	trap - RETURN
+}
+
+if [[ ! -x "$node_home/bin/node" ]] || [[ "$($node_home/bin/node --version)" != "v${node_version}" ]]; then
+	run_step "Install Node.js v${node_version}" install_node
+else
+	printf '==> Node.js v%s is already installed\n' "$node_version"
+fi
+
+profile_marker="# amp-zenodo Node.js toolchain"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+	cat >> "$HOME/.bash_profile" <<EOF
+
+$profile_marker
+export PATH="$node_home/bin:\$PATH"
+EOF
+fi
+
+export PATH="$node_home/bin:$PATH"
+cd "$repo_root"
+run_step "Install locked npm dependencies" npm ci --ignore-scripts --no-audit --no-fund
+
+printf '==> Setup complete (Node.js %s, npm %s)\n' "$(node --version)" "$(npm --version)"
